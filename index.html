@@ -493,6 +493,7 @@
       try{
         await db.collection('palpites').doc(id).update({ nome, brasil, haiti });
         editandoId = null;
+        renderLista();
       }catch(err){
         alert('Erro ao salvar: ' + err.message);
       }
