@@ -186,6 +186,32 @@
     display:none;
   }
   .ganhadores strong{color:var(--verde);}
+  .bandeira{
+    width:22px;
+    height:15px;
+    object-fit:cover;
+    border-radius:2px;
+    vertical-align:middle;
+    box-shadow:0 0 0 1px rgba(0,0,0,.15);
+    margin:0 4px;
+  }
+  td.acoes{white-space:nowrap;width:1%;}
+  .acao-btn{
+    width:auto;
+    display:inline-block;
+    padding:5px 8px;
+    font-size:.85rem;
+    border-radius:6px;
+    background:#eee;
+    color:#333;
+    margin-right:4px;
+  }
+  .acao-btn.excluir{background:#fde2e2;}
+  .acao-btn.salvar{background:#d9f2e3;}
+  tr.editando td{padding:6px 4px;}
+  tr.editando input{margin-bottom:0;padding:6px 8px;font-size:.85rem;}
+  .edit-placar{display:flex;align-items:center;gap:4px;}
+  .edit-placar input{width:48px;text-align:center;flex:none;}
   .trancado-banner{
     background:#fff3cd;
     border:1px solid #ffe28a;
@@ -250,11 +276,11 @@
 
       <label>Placar final</label>
       <div class="placar-row">
-        <span class="time">🇧🇷 Brasil</span>
+        <span class="time"><img class="bandeira" src="https://flagcdn.com/w40/br.png" alt="Brasil"> Brasil</span>
         <input type="number" id="placarBrasil" min="0" max="20" required>
         <span class="versus">x</span>
         <input type="number" id="placarHaiti" min="0" max="20" required>
-        <span class="time" style="text-align:right">Haiti 🇭🇹</span>
+        <span class="time" style="text-align:right">Haiti <img class="bandeira" src="https://flagcdn.com/w40/ht.png" alt="Haiti"></span>
       </div>
 
       <button type="submit">Enviar palpite</button>
@@ -280,11 +306,11 @@
       </div>
       <label>Resultado oficial</label>
       <div class="placar-row">
-        <span class="time">🇧🇷 Brasil</span>
+        <span class="time"><img class="bandeira" src="https://flagcdn.com/w40/br.png" alt="Brasil"> Brasil</span>
         <input type="number" id="oficialBrasil" min="0" max="20">
         <span class="versus">x</span>
         <input type="number" id="oficialHaiti" min="0" max="20">
-        <span class="time" style="text-align:right">Haiti 🇭🇹</span>
+        <span class="time" style="text-align:right">Haiti <img class="bandeira" src="https://flagcdn.com/w40/ht.png" alt="Haiti"></span>
       </div>
       <div class="admin-row">
         <button class="admin" id="btnOficial" type="button">Salvar resultado oficial</button>
@@ -400,6 +426,7 @@
   // ---- Lista em tempo real ----
   let palpitesAtuais = [];
   let oficial = null;
+  let editandoId = null;
 
   function renderLista(){
     const lista = document.getElementById('lista');
@@ -411,14 +438,74 @@
       return;
     }
 
-    let html = '<table><thead><tr><th>Nome</th><th>Placar</th></tr></thead><tbody>';
+    const acoesHeader = isAdmin ? '<th>Ações</th>' : '';
+    let html = `<table><thead><tr><th>Nome</th><th>Placar</th>${acoesHeader}</tr></thead><tbody>`;
     palpitesAtuais.forEach(p => {
       const acertou = oficial && p.brasil === oficial.brasil && p.haiti === oficial.haiti;
-      html += `<tr class="${acertou ? 'vencedor' : ''}"><td>${escapeHtml(p.nome)}</td><td>${p.brasil} x ${p.haiti}</td></tr>`;
+
+      if(isAdmin && editandoId === p.id){
+        html += `<tr class="editando" data-id="${p.id}">
+          <td><input type="text" class="edit-nome" value="${escapeHtml(p.nome)}" maxlength="40"></td>
+          <td>
+            <div class="edit-placar">
+              <input type="number" class="edit-brasil" value="${p.brasil}" min="0" max="20">
+              <span>x</span>
+              <input type="number" class="edit-haiti" value="${p.haiti}" min="0" max="20">
+            </div>
+          </td>
+          <td class="acoes">
+            <button type="button" class="acao-btn salvar" data-id="${p.id}" title="Salvar">💾</button>
+            <button type="button" class="acao-btn cancelar" data-id="${p.id}" title="Cancelar">✖️</button>
+          </td>
+        </tr>`;
+      }else{
+        const acoesCell = isAdmin ? `<td class="acoes">
+            <button type="button" class="acao-btn editar" data-id="${p.id}" title="Editar">✏️</button>
+            <button type="button" class="acao-btn excluir" data-id="${p.id}" data-nome="${escapeHtml(p.nome)}" title="Excluir">🗑️</button>
+          </td>` : '';
+        html += `<tr class="${acertou ? 'vencedor' : ''}"><td>${escapeHtml(p.nome)}</td><td>${p.brasil} x ${p.haiti}</td>${acoesCell}</tr>`;
+      }
     });
     html += '</tbody></table>';
     lista.innerHTML = html;
   }
+
+  document.getElementById('lista').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.acao-btn');
+    if(!btn || !isAdmin) return;
+    const id = btn.dataset.id;
+
+    if(btn.classList.contains('editar')){
+      editandoId = id;
+      renderLista();
+    }else if(btn.classList.contains('cancelar')){
+      editandoId = null;
+      renderLista();
+    }else if(btn.classList.contains('salvar')){
+      const row = btn.closest('tr');
+      const nome = row.querySelector('.edit-nome').value.trim();
+      const brasil = parseInt(row.querySelector('.edit-brasil').value, 10);
+      const haiti = parseInt(row.querySelector('.edit-haiti').value, 10);
+      if(!nome || isNaN(brasil) || isNaN(haiti) || brasil < 0 || haiti < 0){
+        alert('Preencha nome e placar corretamente.');
+        return;
+      }
+      try{
+        await db.collection('palpites').doc(id).update({ nome, brasil, haiti });
+        editandoId = null;
+      }catch(err){
+        alert('Erro ao salvar: ' + err.message);
+      }
+    }else if(btn.classList.contains('excluir')){
+      const nome = btn.dataset.nome;
+      if(!confirm(`Tem certeza que deseja excluir o palpite de ${nome}?`)) return;
+      try{
+        await db.collection('palpites').doc(id).delete();
+      }catch(err){
+        alert('Erro ao excluir: ' + err.message);
+      }
+    }
+  });
 
   function escapeHtml(s){
     return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -428,7 +515,7 @@
     const el = document.getElementById('resultadoOficial');
     if(oficial){
       el.style.display = 'block';
-      el.textContent = `Resultado oficial: Brasil ${oficial.brasil} x ${oficial.haiti} Haiti`;
+      el.innerHTML = `Resultado oficial: <img class="bandeira" src="https://flagcdn.com/w40/br.png" alt="Brasil"> Brasil ${oficial.brasil} x ${oficial.haiti} Haiti <img class="bandeira" src="https://flagcdn.com/w40/ht.png" alt="Haiti">`;
     }else{
       el.style.display = 'none';
     }
@@ -461,7 +548,7 @@
   }
 
   db.collection('palpites').orderBy('timestamp', 'asc').onSnapshot(snap => {
-    palpitesAtuais = snap.docs.map(d => d.data());
+    palpitesAtuais = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderLista();
     renderPremio();
     renderGanhadores();
@@ -537,15 +624,18 @@
       btnAdminTop.style.display = 'none';
     }else if(user){
       isAdmin = false;
+      editandoId = null;
       painelAdmin.style.display = 'none';
       msgNaoAutorizado.style.display = 'block';
       btnAdminTop.style.display = 'none';
     }else{
       isAdmin = false;
+      editandoId = null;
       painelAdmin.style.display = 'none';
       msgNaoAutorizado.style.display = 'none';
       btnAdminTop.style.display = 'block';
     }
+    renderLista();
   });
 
   document.getElementById('btnOficial').addEventListener('click', async () => {
