@@ -20,6 +20,7 @@
     color:#1a1a1a;
   }
   header{
+    position:relative;
     background:linear-gradient(135deg,var(--verde) 0%,var(--verde) 55%,var(--amarelo) 100%);
     color:#fff;
     padding:28px 16px 22px;
@@ -35,6 +36,20 @@
     font-size:.95rem;
     opacity:.95;
   }
+  .btn-admin-top{
+    position:absolute;
+    top:14px;
+    right:14px;
+    background:rgba(255,255,255,.22);
+    border:1px solid rgba(255,255,255,.6);
+    color:#fff;
+    padding:6px 10px;
+    border-radius:20px;
+    font-size:.72rem;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .btn-admin-top:hover{background:rgba(255,255,255,.35);}
   .stripe{
     height:4px;
     background:repeating-linear-gradient(90deg,var(--verde) 0 20px, var(--amarelo) 20px 40px, var(--haiti) 40px 60px, var(--azul) 60px 80px);
@@ -71,6 +86,7 @@
     font-size:1rem;
     margin-bottom:14px;
   }
+  input:disabled{background:#f1f1f1;color:#999;}
   .placar-row{
     display:flex;
     align-items:center;
@@ -105,6 +121,7 @@
     transition:opacity .15s;
   }
   button:hover{opacity:.9;}
+  button:disabled{opacity:.5;cursor:not-allowed;}
   button.secundario{
     background:#25D366;
     margin-top:10px;
@@ -113,6 +130,15 @@
     background:#888;
     font-size:.8rem;
     padding:8px;
+  }
+  button.btn-trancar{background:var(--haiti);}
+  button.btn-trancar.destrancar{background:var(--verde);}
+  button.btn-logout{
+    background:#888;
+    font-size:.75rem;
+    padding:5px 12px;
+    width:auto;
+    display:inline-block;
   }
   #msg{
     margin-top:10px;
@@ -142,6 +168,56 @@
     margin-bottom:10px;
     display:none;
   }
+  .premio-info{
+    text-align:center;
+    font-size:.85rem;
+    color:#666;
+    margin:-6px 0 12px;
+  }
+  .ganhadores{
+    background:#e6f7ec;
+    border:1px solid #b9e6c9;
+    border-radius:8px;
+    padding:10px 12px;
+    margin-bottom:14px;
+    font-size:.88rem;
+    color:#1a1a1a;
+    text-align:center;
+    display:none;
+  }
+  .ganhadores strong{color:var(--verde);}
+  .trancado-banner{
+    background:#fff3cd;
+    border:1px solid #ffe28a;
+    color:#7a5b00;
+    padding:10px 12px;
+    border-radius:8px;
+    font-size:.85rem;
+    text-align:center;
+    margin-bottom:14px;
+    font-weight:600;
+  }
+  .admin-logado{
+    font-size:.78rem;
+    color:#666;
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .admin-row{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+  }
+  .admin-row button{flex:1;}
+  .nao-autorizado{
+    color:var(--haiti);
+    font-size:.8rem;
+    text-align:center;
+    margin-top:10px;
+  }
   details{margin-top:10px;}
   summary{cursor:pointer;color:#888;font-size:.8rem;}
   .vazio{color:#999;font-size:.9rem;text-align:center;padding:10px 0;}
@@ -156,6 +232,7 @@
 <body>
 
 <header>
+  <button id="btnAdminTop" class="btn-admin-top" type="button">🔑 Admin</button>
   <h1>🏆 Bolão Brasil x Haiti</h1>
   <p>Copa do Mundo 2026 — Grupo C</p>
   <p>Sexta-feira, 19/06 • 21h30 (horário de Brasília) • Estádio da Filadélfia</p>
@@ -166,6 +243,7 @@
 
   <div class="card">
     <h2>Faça seu palpite</h2>
+    <div id="bannerTrancado" class="trancado-banner" style="display:none;">🔒 As apostas para esse jogo estão encerradas.</div>
     <form id="form-palpite">
       <label for="nome">Seu nome</label>
       <input type="text" id="nome" maxlength="40" placeholder="Ex: Duilio" required>
@@ -186,25 +264,38 @@
 
   <div class="card">
     <h2>Palpites <span id="contador" style="color:#999;font-weight:400;font-size:.85rem;"></span></h2>
+    <p id="premioInfo" class="premio-info"></p>
     <div id="resultadoOficial"></div>
+    <div id="ganhadores" class="ganhadores"></div>
     <div id="lista">
       <p class="vazio">Carregando...</p>
     </div>
     <button class="secundario" id="btnWhatsapp">📲 Compartilhar lista no WhatsApp</button>
 
-    <details>
-      <summary>Definir resultado oficial (admin)</summary>
-      <div style="margin-top:10px;">
-        <div class="placar-row">
-          <span class="time">🇧🇷 Brasil</span>
-          <input type="number" id="oficialBrasil" min="0" max="20">
-          <span class="versus">x</span>
-          <input type="number" id="oficialHaiti" min="0" max="20">
-          <span class="time" style="text-align:right">Haiti 🇭🇹</span>
-        </div>
-        <button class="admin" id="btnOficial">Salvar resultado oficial</button>
+    <div id="painelAdmin" style="display:none;">
+      <hr style="border:none;border-top:1px solid #eee;margin:16px 0 12px;">
+      <div class="admin-logado">
+        <span>Logado como admin: <strong id="adminEmail"></strong></span>
+        <button class="btn-logout" id="btnLogout" type="button">Sair</button>
       </div>
-    </details>
+      <label>Resultado oficial</label>
+      <div class="placar-row">
+        <span class="time">🇧🇷 Brasil</span>
+        <input type="number" id="oficialBrasil" min="0" max="20">
+        <span class="versus">x</span>
+        <input type="number" id="oficialHaiti" min="0" max="20">
+        <span class="time" style="text-align:right">Haiti 🇭🇹</span>
+      </div>
+      <div class="admin-row">
+        <button class="admin" id="btnOficial" type="button">Salvar resultado oficial</button>
+        <button class="admin btn-trancar" id="btnTrancar" type="button">🔒 Trancar apostas</button>
+      </div>
+    </div>
+
+    <p id="msgNaoAutorizado" class="nao-autorizado" style="display:none;">
+      Essa conta Google não tem permissão de admin.
+      <button class="btn-logout" id="btnLogoutNaoAutorizado" type="button">Sair</button>
+    </p>
   </div>
 
 </main>
@@ -214,9 +305,9 @@
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
   // ====== CONFIGURAÇÃO DO FIREBASE ======
-  // Cole aqui as chaves do seu projeto (Firebase Console > Configurações do projeto > Seus apps > SDK setup).
   const firebaseConfig = {
     apiKey: "AIzaSyCldIga8UzI_f6OfVTL_zUYlZjqKQUFbeE",
     authDomain: "bolao-brasil-haiti-ddf6f.firebaseapp.com",
@@ -226,8 +317,19 @@
     appId: "1:776481320456:web:a737de47c1f9618aa8ebbd"
   };
 
+  // E-mails autorizados a usar o painel de admin
+  const ADMINS = ['duiliodudu@gmail.com', 'wendersonfaria@gmail.com'];
+
+  // Valor de cada aposta (R$)
+  const VALOR_APOSTA = 10;
+
+  function formatBRL(v){
+    return v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
+  const auth = firebase.auth();
 
   function slug(str){
     return str
@@ -241,12 +343,24 @@
   // ---- Envio de palpite ----
   const form = document.getElementById('form-palpite');
   const msg = document.getElementById('msg');
+  let trancado = false;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const nome = document.getElementById('nome').value.trim();
-    const brasil = parseInt(document.getElementById('placarBrasil').value, 10);
-    const haiti = parseInt(document.getElementById('placarHaiti').value, 10);
+
+    if(trancado){
+      msg.textContent = 'As apostas estão encerradas para este jogo.';
+      msg.className = 'erro';
+      return;
+    }
+
+    const nomeInput = document.getElementById('nome');
+    const placarBrasilInput = document.getElementById('placarBrasil');
+    const placarHaitiInput = document.getElementById('placarHaiti');
+
+    const nome = nomeInput.value.trim();
+    const brasil = parseInt(placarBrasilInput.value, 10);
+    const haiti = parseInt(placarHaitiInput.value, 10);
 
     if(!nome || isNaN(brasil) || isNaN(haiti) || brasil < 0 || haiti < 0){
       msg.textContent = 'Preencha nome e placar corretamente.';
@@ -268,8 +382,14 @@
         haiti: haiti,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
-      msg.textContent = '✅ Palpite registrado! Pode atualizar enviando de novo com o mesmo nome.';
+      msg.textContent = '✅ Palpite registrado! Pode enviar outro palpite (de outra pessoa) em seguida.';
       msg.className = 'ok';
+      // Limpa apenas o placar, mantendo o foco pronto pra próxima digitação.
+      // O nome também é limpo para já deixar pronto para a próxima pessoa.
+      placarBrasilInput.value = '';
+      placarHaitiInput.value = '';
+      nomeInput.value = '';
+      nomeInput.focus();
     }catch(err){
       console.error(err);
       msg.textContent = 'Erro ao enviar. Tente novamente.';
@@ -314,9 +434,37 @@
     }
   }
 
+  function renderPremio(){
+    const premioInfo = document.getElementById('premioInfo');
+    const total = palpitesAtuais.length * VALOR_APOSTA;
+    premioInfo.textContent = palpitesAtuais.length
+      ? `💰 Prêmio total: R$ ${formatBRL(total)} (${palpitesAtuais.length} ${palpitesAtuais.length === 1 ? 'aposta' : 'apostas'} x R$ ${formatBRL(VALOR_APOSTA)})`
+      : '';
+  }
+
+  function renderGanhadores(){
+    const el = document.getElementById('ganhadores');
+    if(!oficial || palpitesAtuais.length === 0){
+      el.style.display = 'none';
+      return;
+    }
+    const ganhadores = palpitesAtuais.filter(p => p.brasil === oficial.brasil && p.haiti === oficial.haiti);
+    el.style.display = 'block';
+    if(ganhadores.length === 0){
+      el.innerHTML = 'Nenhum palpite acertou o placar exato. 😅';
+      return;
+    }
+    const total = palpitesAtuais.length * VALOR_APOSTA;
+    const valorCada = total / ganhadores.length;
+    const nomes = ganhadores.map(g => escapeHtml(g.nome)).join(', ');
+    el.innerHTML = `🏆 <strong>${ganhadores.length} ${ganhadores.length === 1 ? 'ganhador' : 'ganhadores'}</strong> — R$ ${formatBRL(valorCada)} cada<br>${nomes}`;
+  }
+
   db.collection('palpites').orderBy('timestamp', 'asc').onSnapshot(snap => {
     palpitesAtuais = snap.docs.map(d => d.data());
     renderLista();
+    renderPremio();
+    renderGanhadores();
   }, err => {
     document.getElementById('lista').innerHTML = '<p class="vazio">Erro ao carregar palpites.</p>';
     console.error(err);
@@ -326,27 +474,115 @@
     oficial = snap.exists ? snap.data() : null;
     renderOficial();
     renderLista();
+    renderGanhadores();
   });
 
-  // ---- Resultado oficial (admin simples) ----
-  document.getElementById('btnOficial').addEventListener('click', async () => {
-    const senha = prompt('Senha de admin:');
-    if(senha !== 'brasil2026'){ // troque por uma senha sua antes de publicar
-      alert('Senha incorreta.');
-      return;
+  // ---- Trava de apostas ----
+  const bannerTrancado = document.getElementById('bannerTrancado');
+  const btnTrancar = document.getElementById('btnTrancar');
+  const inputNome = document.getElementById('nome');
+  const inputPlacarBrasil = document.getElementById('placarBrasil');
+  const inputPlacarHaiti = document.getElementById('placarHaiti');
+  const submitBtn = form.querySelector('button[type=submit]');
+
+  db.collection('config').doc('trancado').onSnapshot(snap => {
+    trancado = snap.exists && snap.data().ativo === true;
+    bannerTrancado.style.display = trancado ? 'block' : 'none';
+    submitBtn.disabled = trancado;
+    inputNome.disabled = trancado;
+    inputPlacarBrasil.disabled = trancado;
+    inputPlacarHaiti.disabled = trancado;
+    if(btnTrancar){
+      btnTrancar.textContent = trancado ? '🔓 Destrancar apostas' : '🔒 Trancar apostas';
+      btnTrancar.classList.toggle('destrancar', trancado);
     }
+  });
+
+  btnTrancar.addEventListener('click', async () => {
+    if(!isAdmin) return;
+    try{
+      await db.collection('config').doc('trancado').set({ ativo: !trancado });
+    }catch(err){
+      alert('Erro ao atualizar: ' + err.message);
+    }
+  });
+
+  // ---- Admin: login com Google ----
+  const btnAdminTop = document.getElementById('btnAdminTop');
+  const painelAdmin = document.getElementById('painelAdmin');
+  const msgNaoAutorizado = document.getElementById('msgNaoAutorizado');
+  const adminEmailEl = document.getElementById('adminEmail');
+  let isAdmin = false;
+
+  btnAdminTop.addEventListener('click', () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(err => {
+      console.error(err);
+      if(err.code !== 'auth/popup-closed-by-user'){
+        alert('Erro ao entrar: ' + err.message);
+      }
+    });
+  });
+
+  function sair(){ auth.signOut(); }
+  document.getElementById('btnLogout').addEventListener('click', sair);
+  document.getElementById('btnLogoutNaoAutorizado').addEventListener('click', sair);
+
+  auth.onAuthStateChanged(user => {
+    if(user && ADMINS.includes(user.email)){
+      isAdmin = true;
+      painelAdmin.style.display = 'block';
+      msgNaoAutorizado.style.display = 'none';
+      adminEmailEl.textContent = user.email;
+      btnAdminTop.style.display = 'none';
+    }else if(user){
+      isAdmin = false;
+      painelAdmin.style.display = 'none';
+      msgNaoAutorizado.style.display = 'block';
+      btnAdminTop.style.display = 'none';
+    }else{
+      isAdmin = false;
+      painelAdmin.style.display = 'none';
+      msgNaoAutorizado.style.display = 'none';
+      btnAdminTop.style.display = 'block';
+    }
+  });
+
+  document.getElementById('btnOficial').addEventListener('click', async () => {
+    if(!isAdmin) return;
     const b = parseInt(document.getElementById('oficialBrasil').value, 10);
     const h = parseInt(document.getElementById('oficialHaiti').value, 10);
     if(isNaN(b) || isNaN(h)){ alert('Preencha o placar oficial.'); return; }
-    await db.collection('config').doc('resultado').set({ brasil: b, haiti: h });
-    alert('Resultado oficial salvo!');
+    try{
+      await db.collection('config').doc('resultado').set({ brasil: b, haiti: h });
+      alert('Resultado oficial salvo!');
+    }catch(err){
+      alert('Erro ao salvar: ' + err.message);
+    }
   });
 
   // ---- Compartilhar no WhatsApp ----
   document.getElementById('btnWhatsapp').addEventListener('click', () => {
     let texto = '🏆 *Bolão Brasil x Haiti* — Copa do Mundo 2026\n\n';
+    if(palpitesAtuais.length > 0){
+      const total = palpitesAtuais.length * VALOR_APOSTA;
+      texto += `💰 Prêmio total: R$ ${formatBRL(total)} (${palpitesAtuais.length} ${palpitesAtuais.length === 1 ? 'aposta' : 'apostas'} x R$ ${formatBRL(VALOR_APOSTA)})\n\n`;
+    }
     if(oficial){
       texto += `📌 Resultado oficial: Brasil ${oficial.brasil} x ${oficial.haiti} Haiti\n\n`;
+      const ganhadores = palpitesAtuais.filter(p => p.brasil === oficial.brasil && p.haiti === oficial.haiti);
+      if(palpitesAtuais.length > 0){
+        if(ganhadores.length === 0){
+          texto += '😅 Nenhum palpite acertou o placar exato.\n\n';
+        }else{
+          const total = palpitesAtuais.length * VALOR_APOSTA;
+          const valorCada = total / ganhadores.length;
+          texto += `🏆 Ganhador(es) — R$ ${formatBRL(valorCada)} cada: ${ganhadores.map(g => g.nome).join(', ')}\n\n`;
+        }
+      }
+    }
+    if(trancado){
+      texto += '🔒 Apostas encerradas para este jogo.\n\n';
     }
     if(palpitesAtuais.length === 0){
       texto += 'Nenhum palpite ainda.';
