@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bolão Brasil x Haiti — Copa do Mundo 2026</title>
+<title>Bolão Brasil — Copa do Mundo 2026</title>
 <style>
   :root{
     --verde:#009c3b;
@@ -85,6 +85,16 @@
     border-radius:8px;
     font-size:1rem;
     margin-bottom:14px;
+  }
+  select{
+    width:100%;
+    padding:11px 12px;
+    border:1px solid #ccc;
+    border-radius:8px;
+    font-size:1rem;
+    font-weight:600;
+    background:#fff;
+    color:#1a1a1a;
   }
   input:disabled{background:#f1f1f1;color:#999;}
   .placar-row{
@@ -259,13 +269,18 @@
 
 <header>
   <button id="btnAdminTop" class="btn-admin-top" type="button">🔑 Admin</button>
-  <h1>🏆 Bolão Brasil x Haiti</h1>
-  <p>Copa do Mundo 2026 — Grupo C</p>
-  <p>Sexta-feira, 19/06 • 21h30 (horário de Brasília) • Estádio da Filadélfia</p>
+  <h1 id="tituloHeader">🏆 Bolão Brasil</h1>
+  <p id="grupoHeader">Copa do Mundo 2026</p>
+  <p id="dataHeader">Carregando...</p>
 </header>
 <div class="stripe"></div>
 
 <main>
+
+  <div class="card" style="padding:16px 20px;">
+    <label for="seletorBolao">Jogo / Bolão</label>
+    <select id="seletorBolao"></select>
+  </div>
 
   <div class="card">
     <h2>Faça seu palpite</h2>
@@ -280,7 +295,7 @@
         <input type="number" id="placarBrasil" min="0" max="20" required>
         <span class="versus">x</span>
         <input type="number" id="placarHaiti" min="0" max="20" required>
-        <span class="time" style="text-align:right">Haiti <img class="bandeira" src="https://flagcdn.com/w40/ht.png" alt="Haiti"></span>
+        <span class="time" style="text-align:right"><span class="nome-adversario">Adversário</span> <img class="bandeira bandeira-adversario" src="https://flagcdn.com/w40/ht.png" alt="Adversário"></span>
       </div>
 
       <button type="submit">Enviar palpite</button>
@@ -310,7 +325,7 @@
         <input type="number" id="oficialBrasil" min="0" max="20">
         <span class="versus">x</span>
         <input type="number" id="oficialHaiti" min="0" max="20">
-        <span class="time" style="text-align:right">Haiti <img class="bandeira" src="https://flagcdn.com/w40/ht.png" alt="Haiti"></span>
+        <span class="time" style="text-align:right"><span class="nome-adversario">Adversário</span> <img class="bandeira bandeira-adversario" src="https://flagcdn.com/w40/ht.png" alt="Adversário"></span>
       </div>
       <div class="admin-row">
         <button class="admin" id="btnOficial" type="button">Salvar resultado oficial</button>
@@ -357,6 +372,76 @@
   const db = firebase.firestore();
   const auth = firebase.auth();
 
+  // ---- Bolões (jogos) disponíveis ----
+  let boloesMap = {};
+  let bolaoAtivo = null;
+  let unsubPalpites = null;
+  let unsubResultado = null;
+  let unsubTrancado = null;
+
+  function metaAtiva(){
+    return (bolaoAtivo && boloesMap[bolaoAtivo]) ? boloesMap[bolaoAtivo] : {};
+  }
+
+  function popularSeletorBolao(){
+    const sel = document.getElementById('seletorBolao');
+    const ids = Object.keys(boloesMap);
+
+    if(ids.length === 0){
+      sel.innerHTML = '';
+      document.getElementById('lista').innerHTML = '<p class="vazio">Nenhum bolão configurado ainda.</p>';
+      return;
+    }
+
+    ids.sort((a, b) => (boloesMap[a].ordem || 0) - (boloesMap[b].ordem || 0));
+    sel.innerHTML = ids.map(id => `<option value="${id}">${escapeHtml(boloesMap[id].titulo || id)}</option>`).join('');
+
+    const valorAtualValido = bolaoAtivo && boloesMap[bolaoAtivo];
+    if(!valorAtualValido){
+      const params = new URLSearchParams(location.search);
+      const fromUrl = params.get('bolao');
+      bolaoAtivo = (fromUrl && boloesMap[fromUrl]) ? fromUrl : ids[ids.length - 1];
+    }
+    sel.value = bolaoAtivo;
+    aplicarBolaoAtivo();
+  }
+
+  function aplicarBolaoAtivo(){
+    const meta = metaAtiva();
+    if(!meta || !bolaoAtivo) return;
+
+    document.title = (meta.titulo || 'Bolão Brasil') + ' — Copa do Mundo 2026';
+    document.getElementById('tituloHeader').textContent = '🏆 ' + (meta.titulo || 'Bolão Brasil');
+    document.getElementById('grupoHeader').textContent = 'Copa do Mundo 2026' + (meta.grupo ? (' — ' + meta.grupo) : '');
+    document.getElementById('dataHeader').textContent = [meta.dataHora, meta.local].filter(Boolean).join(' • ');
+
+    document.querySelectorAll('.nome-adversario').forEach(el => { el.textContent = meta.adversario || 'Adversário'; });
+    document.querySelectorAll('.bandeira-adversario').forEach(el => {
+      el.src = 'https://flagcdn.com/w40/' + (meta.bandeiraAdversario || 'un') + '.png';
+      el.alt = meta.adversario || 'Adversário';
+    });
+
+    const params = new URLSearchParams(location.search);
+    params.set('bolao', bolaoAtivo);
+    history.replaceState(null, '', location.pathname + '?' + params.toString());
+
+    editandoId = null;
+    subscribeToBolao(bolaoAtivo);
+  }
+
+  db.collection('config').doc('boloes').onSnapshot(snap => {
+    boloesMap = snap.exists ? snap.data() : {};
+    popularSeletorBolao();
+  }, err => {
+    console.error(err);
+    document.getElementById('lista').innerHTML = '<p class="vazio">Erro ao carregar os bolões.</p>';
+  });
+
+  document.getElementById('seletorBolao').addEventListener('change', (e) => {
+    bolaoAtivo = e.target.value;
+    aplicarBolaoAtivo();
+  });
+
   // ---- Envio de palpite ----
   const form = document.getElementById('form-palpite');
   const msg = document.getElementById('msg');
@@ -364,6 +449,12 @@
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    if(!bolaoAtivo){
+      msg.textContent = 'Aguarde o carregamento do bolão e tente novamente.';
+      msg.className = 'erro';
+      return;
+    }
 
     if(trancado){
       msg.textContent = 'As apostas estão encerradas para este jogo.';
@@ -390,6 +481,7 @@
         nome: nome,
         brasil: brasil,
         haiti: haiti,
+        bolaoId: bolaoAtivo,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
       msg.textContent = '✅ Palpite registrado! Você pode apostar de novo quando quiser.';
@@ -491,14 +583,15 @@
   });
 
   function escapeHtml(s){
-    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   function renderOficial(){
     const el = document.getElementById('resultadoOficial');
+    const meta = metaAtiva();
     if(oficial){
       el.style.display = 'block';
-      el.innerHTML = `Resultado oficial: <img class="bandeira" src="https://flagcdn.com/w40/br.png" alt="Brasil"> Brasil ${oficial.brasil} x ${oficial.haiti} Haiti <img class="bandeira" src="https://flagcdn.com/w40/ht.png" alt="Haiti">`;
+      el.innerHTML = `Resultado oficial: <img class="bandeira" src="https://flagcdn.com/w40/br.png" alt="Brasil"> Brasil ${oficial.brasil} x ${oficial.haiti} ${escapeHtml(meta.adversario || 'Adversário')} <img class="bandeira" src="https://flagcdn.com/w40/${meta.bandeiraAdversario || 'un'}.png" alt="${escapeHtml(meta.adversario || 'Adversário')}">`;
     }else{
       el.style.display = 'none';
     }
@@ -530,24 +623,7 @@
     el.innerHTML = `🏆 <strong>${ganhadores.length} ${ganhadores.length === 1 ? 'ganhador' : 'ganhadores'}</strong> — R$ ${formatBRL(valorCada)} cada<br>${nomes}`;
   }
 
-  db.collection('palpites').orderBy('timestamp', 'asc').onSnapshot(snap => {
-    palpitesAtuais = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderLista();
-    renderPremio();
-    renderGanhadores();
-  }, err => {
-    document.getElementById('lista').innerHTML = '<p class="vazio">Erro ao carregar palpites.</p>';
-    console.error(err);
-  });
-
-  db.collection('config').doc('resultado').onSnapshot(snap => {
-    oficial = snap.exists ? snap.data() : null;
-    renderOficial();
-    renderLista();
-    renderGanhadores();
-  });
-
-  // ---- Trava de apostas ----
+  // ---- Trava de apostas (elementos) ----
   const bannerTrancado = document.getElementById('bannerTrancado');
   const btnTrancar = document.getElementById('btnTrancar');
   const inputNome = document.getElementById('nome');
@@ -555,23 +631,53 @@
   const inputPlacarHaiti = document.getElementById('placarHaiti');
   const submitBtn = form.querySelector('button[type=submit]');
 
-  db.collection('config').doc('trancado').onSnapshot(snap => {
-    trancado = snap.exists && snap.data().ativo === true;
-    bannerTrancado.style.display = trancado ? 'block' : 'none';
-    submitBtn.disabled = trancado;
-    inputNome.disabled = trancado;
-    inputPlacarBrasil.disabled = trancado;
-    inputPlacarHaiti.disabled = trancado;
-    if(btnTrancar){
-      btnTrancar.textContent = trancado ? '🔓 Destrancar apostas' : '🔒 Trancar apostas';
-      btnTrancar.classList.toggle('destrancar', trancado);
-    }
-  });
+  function subscribeToBolao(id){
+    if(unsubPalpites){ unsubPalpites(); unsubPalpites = null; }
+    if(unsubResultado){ unsubResultado(); unsubResultado = null; }
+    if(unsubTrancado){ unsubTrancado(); unsubTrancado = null; }
+
+    document.getElementById('lista').innerHTML = '<p class="vazio">Carregando...</p>';
+
+    unsubPalpites = db.collection('palpites').where('bolaoId', '==', id).onSnapshot(snap => {
+      palpitesAtuais = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      palpitesAtuais.sort((a, b) => {
+        const ta = a.timestamp && a.timestamp.toMillis ? a.timestamp.toMillis() : 0;
+        const tb = b.timestamp && b.timestamp.toMillis ? b.timestamp.toMillis() : 0;
+        return ta - tb;
+      });
+      renderLista();
+      renderPremio();
+      renderGanhadores();
+    }, err => {
+      document.getElementById('lista').innerHTML = '<p class="vazio">Erro ao carregar palpites.</p>';
+      console.error(err);
+    });
+
+    unsubResultado = db.collection('config').doc('resultado-' + id).onSnapshot(snap => {
+      oficial = snap.exists ? snap.data() : null;
+      renderOficial();
+      renderLista();
+      renderGanhadores();
+    });
+
+    unsubTrancado = db.collection('config').doc('trancado-' + id).onSnapshot(snap => {
+      trancado = snap.exists && snap.data().ativo === true;
+      bannerTrancado.style.display = trancado ? 'block' : 'none';
+      submitBtn.disabled = trancado;
+      inputNome.disabled = trancado;
+      inputPlacarBrasil.disabled = trancado;
+      inputPlacarHaiti.disabled = trancado;
+      if(btnTrancar){
+        btnTrancar.textContent = trancado ? '🔓 Destrancar apostas' : '🔒 Trancar apostas';
+        btnTrancar.classList.toggle('destrancar', trancado);
+      }
+    });
+  }
 
   btnTrancar.addEventListener('click', async () => {
-    if(!isAdmin) return;
+    if(!isAdmin || !bolaoAtivo) return;
     try{
-      await db.collection('config').doc('trancado').set({ ativo: !trancado });
+      await db.collection('config').doc('trancado-' + bolaoAtivo).set({ ativo: !trancado });
     }catch(err){
       alert('Erro ao atualizar: ' + err.message);
     }
@@ -622,12 +728,12 @@
   });
 
   document.getElementById('btnOficial').addEventListener('click', async () => {
-    if(!isAdmin) return;
+    if(!isAdmin || !bolaoAtivo) return;
     const b = parseInt(document.getElementById('oficialBrasil').value, 10);
     const h = parseInt(document.getElementById('oficialHaiti').value, 10);
     if(isNaN(b) || isNaN(h)){ alert('Preencha o placar oficial.'); return; }
     try{
-      await db.collection('config').doc('resultado').set({ brasil: b, haiti: h });
+      await db.collection('config').doc('resultado-' + bolaoAtivo).set({ brasil: b, haiti: h });
       alert('Resultado oficial salvo!');
     }catch(err){
       alert('Erro ao salvar: ' + err.message);
@@ -636,13 +742,15 @@
 
   // ---- Compartilhar no WhatsApp ----
   document.getElementById('btnWhatsapp').addEventListener('click', () => {
-    let texto = '🏆 *Bolão Brasil x Haiti* — Copa do Mundo 2026\n\n';
+    const meta = metaAtiva();
+    const adversario = meta.adversario || 'Adversário';
+    let texto = `🏆 *${meta.titulo || 'Bolão Brasil'}* — Copa do Mundo 2026\n\n`;
     if(palpitesAtuais.length > 0){
       const total = palpitesAtuais.length * VALOR_APOSTA;
       texto += `💰 Prêmio total: R$ ${formatBRL(total)} (${palpitesAtuais.length} ${palpitesAtuais.length === 1 ? 'aposta' : 'apostas'} x R$ ${formatBRL(VALOR_APOSTA)})\n\n`;
     }
     if(oficial){
-      texto += `📌 Resultado oficial: Brasil ${oficial.brasil} x ${oficial.haiti} Haiti\n\n`;
+      texto += `📌 Resultado oficial: Brasil ${oficial.brasil} x ${oficial.haiti} ${adversario}\n\n`;
       const ganhadores = palpitesAtuais.filter(p => p.brasil === oficial.brasil && p.haiti === oficial.haiti);
       if(palpitesAtuais.length > 0){
         if(ganhadores.length === 0){
