@@ -357,15 +357,6 @@
   const db = firebase.firestore();
   const auth = firebase.auth();
 
-  function slug(str){
-    return str
-      .normalize('NFD').replace(/[̀-ͯ]/g,'')
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g,'-')
-      .replace(/^-+|-+$/g,'');
-  }
-
   // ---- Envio de palpite ----
   const form = document.getElementById('form-palpite');
   const msg = document.getElementById('msg');
@@ -394,28 +385,19 @@
       return;
     }
 
-    const id = slug(nome);
-    if(!id){
-      msg.textContent = 'Nome inválido.';
-      msg.className = 'erro';
-      return;
-    }
-
     try{
-      await db.collection('palpites').doc(id).set({
+      await db.collection('palpites').add({
         nome: nome,
         brasil: brasil,
         haiti: haiti,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
-      msg.textContent = '✅ Palpite registrado! Pode enviar outro palpite (de outra pessoa) em seguida.';
+      msg.textContent = '✅ Palpite registrado! Você pode apostar de novo quando quiser.';
       msg.className = 'ok';
-      // Limpa apenas o placar, mantendo o foco pronto pra próxima digitação.
-      // O nome também é limpo para já deixar pronto para a próxima pessoa.
+      // Limpa o placar para o próximo palpite (mantém o nome preenchido).
       placarBrasilInput.value = '';
       placarHaitiInput.value = '';
-      nomeInput.value = '';
-      nomeInput.focus();
+      placarBrasilInput.focus();
     }catch(err){
       console.error(err);
       msg.textContent = 'Erro ao enviar. Tente novamente.';
@@ -683,6 +665,7 @@
         texto += `${acertou ? '🏆 ' : '• '}${p.nome}: ${p.brasil} x ${p.haiti}\n`;
       });
     }
+    texto += '\n📲 Para novas apostas, clique aqui: https://duiliodutra.github.io/bolao-brasil-haiti/';
     const url = 'https://wa.me/?text=' + encodeURIComponent(texto);
     window.open(url, '_blank');
   });
