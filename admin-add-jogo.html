@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin — adicionar bolão</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+    button { padding: 12px 16px; font-size: 1rem; cursor: pointer; background: #009c3b; color: #fff; border: none; border-radius: 8px; width: 100%; }
+    button:disabled { opacity: 0.5; }
+    #log { margin-top: 16px; font-size: 0.9rem; white-space: pre-wrap; }
+    .ok { color: #009c3b; }
+    .erro { color: #c00; }
+  </style>
+</head>
+<body>
+  <h1>Adicionar bolão Brasil x Japão</h1>
+  <p>Login admin Google obrigatório. Mantém Haiti e Escócia; abre apostas do novo jogo.</p>
+  <button id="btnLogin">Entrar com Google (admin)</button>
+  <button id="btnAdd" disabled style="margin-top:10px">Cadastrar jogo de hoje</button>
+  <div id="log"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCldIga8UzI_f6OfVTL_zUYlZjqKQUFbeE",
+      authDomain: "bolao-brasil-haiti-ddf6f.firebaseapp.com",
+      projectId: "bolao-brasil-haiti-ddf6f",
+      storageBucket: "bolao-brasil-haiti-ddf6f.firebasestorage.app",
+      messagingSenderId: "776481320456",
+      appId: "1:776481320456:web:a737de47c1f9618aa8ebbd"
+    };
+    const ADMINS = ['duiliodudu@gmail.com', 'wendersonfaria@gmail.com'];
+    const NOVO_JOGO = {
+      id: 'brasil-japao',
+      titulo: 'Bolão Brasil x Japão',
+      adversario: 'Japão',
+      bandeiraAdversario: 'jp',
+      grupo: '16 avos de final',
+      local: 'NRG Stadium, Houston',
+      dataHora: 'Segunda-feira, 29/06 — 14h00 (horário de Brasília)',
+      ordem: 3
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+    const log = document.getElementById('log');
+    const btnAdd = document.getElementById('btnAdd');
+
+    function say(msg, cls) {
+      log.textContent += msg + '\n';
+      if (cls) log.className = cls;
+    }
+
+    document.getElementById('btnLogin').addEventListener('click', () => {
+      auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => say(e.message, 'erro'));
+    });
+
+    auth.onAuthStateChanged(user => {
+      if (user && ADMINS.includes(user.email)) {
+        say('Admin: ' + user.email, 'ok');
+        btnAdd.disabled = false;
+        document.getElementById('btnLogin').style.display = 'none';
+      } else if (user) {
+        say('Conta sem permissão: ' + user.email, 'erro');
+        btnAdd.disabled = true;
+      }
+    });
+
+    btnAdd.addEventListener('click', async () => {
+      btnAdd.disabled = true;
+      try {
+        await db.collection('config').doc('boloes').set({
+          [NOVO_JOGO.id]: NOVO_JOGO
+        }, { merge: true });
+        await db.collection('config').doc('trancado-' + NOVO_JOGO.id).set({ ativo: false });
+        say('✅ Bolão cadastrado!', 'ok');
+        say('Link: https://duiliodutra.github.io/bolao-brasil-haiti/?bolao=brasil-japao', 'ok');
+      } catch (e) {
+        say('Erro: ' + e.message, 'erro');
+        btnAdd.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
