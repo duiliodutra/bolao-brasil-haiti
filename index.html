@@ -331,6 +331,7 @@
         <button class="admin" id="btnOficial" type="button">Salvar resultado oficial</button>
         <button class="admin btn-trancar" id="btnTrancar" type="button">🔒 Trancar apostas</button>
       </div>
+      <button class="admin" id="btnSyncJapao" type="button" style="margin-top:10px;width:100%;display:none;">➕ Publicar bolão Brasil x Japão no Firebase</button>
     </div>
 
     <p id="msgNaoAutorizado" class="nao-autorizado" style="display:none;">
@@ -363,6 +364,28 @@
 
   // Valor de cada aposta (R$)
   const VALOR_APOSTA = 10;
+
+  const BOLAO_JAPAO = {
+    id: 'brasil-japao',
+    titulo: 'Bolão Brasil x Japão',
+    adversario: 'Japão',
+    bandeiraAdversario: 'jp',
+    grupo: '16 avos de final',
+    local: 'NRG Stadium, Houston',
+    dataHora: 'Segunda-feira, 29/06 — 14h00 (horário de Brasília)',
+    ordem: 3
+  };
+
+  function mergeBoloesExtras(){
+    if(!boloesMap['brasil-japao']) boloesMap['brasil-japao'] = { ...BOLAO_JAPAO };
+  }
+
+  async function persistBolaoJapao(){
+    await db.collection('config').doc('boloes').set({
+      'brasil-japao': BOLAO_JAPAO
+    }, { merge: true });
+    await db.collection('config').doc('trancado-brasil-japao').set({ ativo: false });
+  }
 
   function formatBRL(v){
     return v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -431,6 +454,7 @@
 
   db.collection('config').doc('boloes').onSnapshot(snap => {
     boloesMap = snap.exists ? snap.data() : {};
+    mergeBoloesExtras();
     popularSeletorBolao();
   }, err => {
     console.error(err);
@@ -704,13 +728,36 @@
   document.getElementById('btnLogout').addEventListener('click', sair);
   document.getElementById('btnLogoutNaoAutorizado').addEventListener('click', sair);
 
-  auth.onAuthStateChanged(user => {
+  const btnSyncJapao = document.getElementById('btnSyncJapao');
+
+  btnSyncJapao.addEventListener('click', async () => {
+    if(!isAdmin) return;
+    btnSyncJapao.disabled = true;
+    try{
+      await persistBolaoJapao();
+      alert('Bolão Brasil x Japão publicado!');
+      bolaoAtivo = 'brasil-japao';
+      aplicarBolaoAtivo();
+    }catch(err){
+      alert('Erro: ' + err.message);
+    }finally{
+      btnSyncJapao.disabled = false;
+    }
+  });
+
+  auth.onAuthStateChanged(async user => {
     if(user && ADMINS.includes(user.email)){
       isAdmin = true;
       painelAdmin.style.display = 'block';
       msgNaoAutorizado.style.display = 'none';
       adminEmailEl.textContent = user.email;
       btnAdminTop.style.display = 'none';
+      const snap = await db.collection('config').doc('boloes').get();
+      const remoto = snap.exists ? snap.data() : {};
+      btnSyncJapao.style.display = remoto['brasil-japao'] ? 'none' : 'block';
+      if(!remoto['brasil-japao']){
+        try{ await persistBolaoJapao(); btnSyncJapao.style.display = 'none'; }catch(e){ /* admin publica manualmente */ }
+      }
     }else if(user){
       isAdmin = false;
       editandoId = null;
@@ -773,7 +820,7 @@
         texto += `${acertou ? '🏆 ' : '• '}${p.nome}: ${p.brasil} x ${p.haiti}\n`;
       });
     }
-    texto += '\n📲 Para novas apostas, clique aqui: https://duiliodutra.github.io/bolao-brasil-haiti/';
+    texto += '\n📲 Para novas apostas: https://duiliodutra.github.io/bolao-brasil-haiti/?bolao=' + (bolaoAtivo || 'brasil-japao');
     const url = 'https://wa.me/?text=' + encodeURIComponent(texto);
     window.open(url, '_blank');
   });
