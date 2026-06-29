@@ -257,6 +257,19 @@
   details{margin-top:10px;}
   summary{cursor:pointer;color:#888;font-size:.8rem;}
   .vazio{color:#999;font-size:.9rem;text-align:center;padding:10px 0;}
+  .bolao-rapido{
+    background:#f0f7ff;
+    border:1px solid #c5daf5;
+    border-radius:8px;
+    padding:12px;
+    margin-bottom:14px;
+    font-size:.88rem;
+  }
+  .bolao-rapido p{margin:0 0 10px;color:#333;}
+  .bolao-rapido button{width:auto;display:inline-block;padding:8px 14px;font-size:.85rem;}
+  .bolao-form-grid{display:grid;gap:10px;}
+  .bolao-form-grid .campo-duplo{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .bolao-form-grid input{margin-bottom:0;}
   footer{
     text-align:center;
     color:#999;
@@ -331,6 +344,53 @@
         <button class="admin" id="btnOficial" type="button">Salvar resultado oficial</button>
         <button class="admin btn-trancar" id="btnTrancar" type="button">🔒 Trancar apostas</button>
       </div>
+
+      <details id="painelBoloes" style="margin-top:14px;">
+        <summary>Gerenciar bolões / adicionar jogo</summary>
+        <div id="bolaoRapido" class="bolao-rapido" style="display:none;margin-top:12px;">
+          <p id="bolaoRapidoTexto"></p>
+          <button type="button" class="admin" id="btnBolaoRapido" style="background:var(--azul);">Publicar bolão</button>
+        </div>
+        <div class="bolao-form-grid" style="margin-top:12px;">
+          <div class="campo-duplo">
+            <div>
+              <label for="novoBolaoId">ID do bolão</label>
+              <input type="text" id="novoBolaoId" placeholder="Ex: brasil-japao" maxlength="40">
+            </div>
+            <div>
+              <label for="novoBolaoOrdem">Ordem</label>
+              <input type="number" id="novoBolaoOrdem" min="1" max="99" value="3">
+            </div>
+          </div>
+          <div>
+            <label for="novoBolaoTitulo">Título</label>
+            <input type="text" id="novoBolaoTitulo" placeholder="Ex: Bolão Brasil x Japão" maxlength="60">
+          </div>
+          <div class="campo-duplo">
+            <div>
+              <label for="novoBolaoAdversario">Adversário</label>
+              <input type="text" id="novoBolaoAdversario" placeholder="Ex: Japão" maxlength="30">
+            </div>
+            <div>
+              <label for="novoBolaoBandeira">Código da bandeira</label>
+              <input type="text" id="novoBolaoBandeira" placeholder="Ex: jp" maxlength="10">
+            </div>
+          </div>
+          <div>
+            <label for="novoBolaoGrupo">Fase / grupo</label>
+            <input type="text" id="novoBolaoGrupo" placeholder="Ex: 2ª fase — Dezesseis avos" maxlength="40">
+          </div>
+          <div>
+            <label for="novoBolaoDataHora">Data e horário</label>
+            <input type="text" id="novoBolaoDataHora" placeholder="Ex: Segunda-feira, 29/06 • 14h (horário de Brasília)" maxlength="80">
+          </div>
+          <div>
+            <label for="novoBolaoLocal">Local</label>
+            <input type="text" id="novoBolaoLocal" placeholder="Ex: Houston" maxlength="60">
+          </div>
+          <button type="button" class="admin" id="btnSalvarBolao" style="background:var(--azul);">Salvar bolão</button>
+        </div>
+      </details>
     </div>
 
     <p id="msgNaoAutorizado" class="nao-autorizado" style="display:none;">
@@ -378,6 +438,92 @@
   let unsubPalpites = null;
   let unsubResultado = null;
   let unsubTrancado = null;
+
+  const BOLAO_RAPIDO = {
+    id: 'brasil-japao',
+    ordem: 3,
+    titulo: 'Bolão Brasil x Japão',
+    adversario: 'Japão',
+    bandeiraAdversario: 'jp',
+    grupo: '2ª fase — Dezesseis avos',
+    dataHora: 'Segunda-feira, 29/06 • 14h (horário de Brasília)',
+    local: 'Houston'
+  };
+
+  function preencherFormularioBolao(meta){
+    document.getElementById('novoBolaoId').value = meta.id || '';
+    document.getElementById('novoBolaoOrdem').value = meta.ordem || 1;
+    document.getElementById('novoBolaoTitulo').value = meta.titulo || '';
+    document.getElementById('novoBolaoAdversario').value = meta.adversario || '';
+    document.getElementById('novoBolaoBandeira').value = meta.bandeiraAdversario || '';
+    document.getElementById('novoBolaoGrupo').value = meta.grupo || '';
+    document.getElementById('novoBolaoDataHora').value = meta.dataHora || '';
+    document.getElementById('novoBolaoLocal').value = meta.local || '';
+  }
+
+  function atualizarBolaoRapido(){
+    const box = document.getElementById('bolaoRapido');
+    const texto = document.getElementById('bolaoRapidoTexto');
+    if(!box || !isAdmin) return;
+
+    if(boloesMap[BOLAO_RAPIDO.id]){
+      box.style.display = 'none';
+      return;
+    }
+
+    box.style.display = 'block';
+    texto.textContent = `O bolão *${BOLAO_RAPIDO.titulo}* ainda não foi publicado. Clique abaixo para liberar as apostas de hoje.`;
+  }
+
+  async function salvarBolao(meta){
+    const id = (meta.id || '').trim().toLowerCase().replace(/\s+/g, '-');
+    if(!id || !/^[a-z0-9-]+$/.test(id)){
+      alert('Informe um ID válido (letras minúsculas, números e hífens).');
+      return;
+    }
+    if(!meta.titulo || !meta.adversario || !meta.bandeiraAdversario){
+      alert('Preencha título, adversário e código da bandeira.');
+      return;
+    }
+
+    const payload = {
+      titulo: meta.titulo.trim(),
+      adversario: meta.adversario.trim(),
+      bandeiraAdversario: meta.bandeiraAdversario.trim().toLowerCase(),
+      ordem: parseInt(meta.ordem, 10) || 1,
+      grupo: (meta.grupo || '').trim(),
+      dataHora: (meta.dataHora || '').trim(),
+      local: (meta.local || '').trim()
+    };
+
+    try{
+      await db.collection('config').doc('boloes').set({ [id]: payload }, { merge: true });
+      bolaoAtivo = id;
+      alert('Bolão publicado com sucesso!');
+    }catch(err){
+      alert('Erro ao salvar bolão: ' + err.message);
+    }
+  }
+
+  document.getElementById('btnBolaoRapido').addEventListener('click', () => {
+    if(!isAdmin) return;
+    preencherFormularioBolao(BOLAO_RAPIDO);
+    salvarBolao(BOLAO_RAPIDO);
+  });
+
+  document.getElementById('btnSalvarBolao').addEventListener('click', () => {
+    if(!isAdmin) return;
+    salvarBolao({
+      id: document.getElementById('novoBolaoId').value,
+      ordem: document.getElementById('novoBolaoOrdem').value,
+      titulo: document.getElementById('novoBolaoTitulo').value,
+      adversario: document.getElementById('novoBolaoAdversario').value,
+      bandeiraAdversario: document.getElementById('novoBolaoBandeira').value,
+      grupo: document.getElementById('novoBolaoGrupo').value,
+      dataHora: document.getElementById('novoBolaoDataHora').value,
+      local: document.getElementById('novoBolaoLocal').value
+    });
+  });
 
   function metaAtiva(){
     return (bolaoAtivo && boloesMap[bolaoAtivo]) ? boloesMap[bolaoAtivo] : {};
@@ -432,6 +578,7 @@
   db.collection('config').doc('boloes').onSnapshot(snap => {
     boloesMap = snap.exists ? snap.data() : {};
     popularSeletorBolao();
+    atualizarBolaoRapido();
   }, err => {
     console.error(err);
     document.getElementById('lista').innerHTML = '<p class="vazio">Erro ao carregar os bolões.</p>';
@@ -725,6 +872,7 @@
       btnAdminTop.style.display = 'block';
     }
     renderLista();
+    atualizarBolaoRapido();
   });
 
   document.getElementById('btnOficial').addEventListener('click', async () => {
@@ -773,7 +921,7 @@
         texto += `${acertou ? '🏆 ' : '• '}${p.nome}: ${p.brasil} x ${p.haiti}\n`;
       });
     }
-    texto += '\n📲 Para novas apostas, clique aqui: https://duiliodutra.github.io/bolao-brasil-haiti/';
+    texto += '\n📲 Para novas apostas, clique aqui: https://duiliodutra.github.io/bolao-brasil-haiti/?bolao=' + encodeURIComponent(bolaoAtivo || '');
     const url = 'https://wa.me/?text=' + encodeURIComponent(texto);
     window.open(url, '_blank');
   });
