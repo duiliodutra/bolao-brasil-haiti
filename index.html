@@ -331,6 +331,7 @@
         <button class="admin" id="btnOficial" type="button">Salvar resultado oficial</button>
         <button class="admin btn-trancar" id="btnTrancar" type="button">🔒 Trancar apostas</button>
       </div>
+      <button class="admin" id="btnPublicarBolao" type="button" style="display:none;margin-top:10px;">📋 Publicar este bolão no Firebase</button>
     </div>
 
     <p id="msgNaoAutorizado" class="nao-autorizado" style="display:none;">
@@ -364,6 +365,20 @@
   // Valor de cada aposta (R$)
   const VALOR_APOSTA = 10;
 
+  // Bolões embutidos no app (mesclados com config/boloes do Firebase)
+  const BOLOES_EMBUTIDOS = {
+    'brasil-japao': {
+      id: 'brasil-japao',
+      titulo: 'Bolão Brasil x Japão',
+      adversario: 'Japão',
+      bandeiraAdversario: 'jp',
+      grupo: '16 avos de final',
+      dataHora: 'Segunda-feira, 29/06 • 14h00 (horário de Brasília)',
+      local: 'NRG Stadium, Houston',
+      ordem: 3
+    }
+  };
+
   function formatBRL(v){
     return v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
   }
@@ -373,6 +388,7 @@
   const auth = firebase.auth();
 
   // ---- Bolões (jogos) disponíveis ----
+  let boloesFirebase = {};
   let boloesMap = {};
   let bolaoAtivo = null;
   let unsubPalpites = null;
@@ -427,11 +443,14 @@
 
     editandoId = null;
     subscribeToBolao(bolaoAtivo);
+    atualizarBtnPublicarBolao();
   }
 
   db.collection('config').doc('boloes').onSnapshot(snap => {
-    boloesMap = snap.exists ? snap.data() : {};
+    boloesFirebase = snap.exists ? snap.data() : {};
+    boloesMap = { ...BOLOES_EMBUTIDOS, ...boloesFirebase };
     popularSeletorBolao();
+    atualizarBtnPublicarBolao();
   }, err => {
     console.error(err);
     document.getElementById('lista').innerHTML = '<p class="vazio">Erro ao carregar os bolões.</p>';
@@ -683,6 +702,25 @@
     }
   });
 
+  const btnPublicarBolao = document.getElementById('btnPublicarBolao');
+
+  function atualizarBtnPublicarBolao(){
+    if(!btnPublicarBolao) return;
+    const embutido = BOLOES_EMBUTIDOS[bolaoAtivo];
+    const jaNoFirebase = bolaoAtivo && boloesFirebase[bolaoAtivo];
+    btnPublicarBolao.style.display = (isAdmin && embutido && !jaNoFirebase) ? 'block' : 'none';
+  }
+
+  btnPublicarBolao.addEventListener('click', async () => {
+    if(!isAdmin || !bolaoAtivo || !BOLOES_EMBUTIDOS[bolaoAtivo]) return;
+    try{
+      await db.collection('config').doc('boloes').set({ [bolaoAtivo]: BOLOES_EMBUTIDOS[bolaoAtivo] }, { merge: true });
+      alert('Bolão publicado no Firebase!');
+    }catch(err){
+      alert('Erro ao publicar: ' + err.message);
+    }
+  });
+
   // ---- Admin: login com Google ----
   const btnAdminTop = document.getElementById('btnAdminTop');
   const painelAdmin = document.getElementById('painelAdmin');
@@ -725,6 +763,7 @@
       btnAdminTop.style.display = 'block';
     }
     renderLista();
+    atualizarBtnPublicarBolao();
   });
 
   document.getElementById('btnOficial').addEventListener('click', async () => {
