@@ -257,6 +257,19 @@
   details{margin-top:10px;}
   summary{cursor:pointer;color:#888;font-size:.8rem;}
   .vazio{color:#999;font-size:.9rem;text-align:center;padding:10px 0;}
+  .pix-info{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    background:#f1f1f1;
+    border-radius:8px;
+    padding:8px 12px;
+    margin-bottom:10px;
+    font-size:.88rem;
+  }
+  .pix-info #pixChave{font-family:monospace;letter-spacing:.5px;}
+  .pix-info .acao-btn{width:auto;padding:5px 10px;}
   footer{
     text-align:center;
     color:#999;
@@ -291,7 +304,7 @@
 
       <label>Placar final</label>
       <div class="placar-row">
-        <span class="time"><img class="bandeira" src="https://flagcdn.com/w40/br.png" alt="Brasil"> Brasil</span>
+        <span class="time"><img class="bandeira bandeira-timeA" src="https://flagcdn.com/w40/br.png" alt="Brasil"> <span class="nome-timeA">Brasil</span></span>
         <input type="number" id="placarBrasil" min="0" max="20" required>
         <span class="versus">x</span>
         <input type="number" id="placarHaiti" min="0" max="20" required>
@@ -311,6 +324,10 @@
     <div id="lista">
       <p class="vazio">Carregando...</p>
     </div>
+    <div class="pix-info">
+      <span>💠 Pix: <strong id="pixChave"></strong></span>
+      <button type="button" class="acao-btn" id="btnCopiarPix">📋 Copiar</button>
+    </div>
     <button class="secundario" id="btnWhatsapp">📲 Compartilhar lista no WhatsApp</button>
 
     <div id="painelAdmin" style="display:none;">
@@ -321,7 +338,7 @@
       </div>
       <label>Resultado oficial</label>
       <div class="placar-row">
-        <span class="time"><img class="bandeira" src="https://flagcdn.com/w40/br.png" alt="Brasil"> Brasil</span>
+        <span class="time"><img class="bandeira bandeira-timeA" src="https://flagcdn.com/w40/br.png" alt="Brasil"> <span class="nome-timeA">Brasil</span></span>
         <input type="number" id="oficialBrasil" min="0" max="20">
         <span class="versus">x</span>
         <input type="number" id="oficialHaiti" min="0" max="20">
@@ -365,6 +382,9 @@
   // Valor de cada aposta (R$)
   const VALOR_APOSTA = 10;
 
+  // Chave Pix para pagamento
+  const PIX_CHAVE = '01300483130';
+
   const BOLAO_JAPAO = {
     id: 'brasil-japao',
     titulo: 'Bolão Brasil x Japão',
@@ -394,6 +414,19 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
   const auth = firebase.auth();
+
+  document.getElementById('pixChave').textContent = PIX_CHAVE;
+  document.getElementById('btnCopiarPix').addEventListener('click', async (e) => {
+    try{
+      await navigator.clipboard.writeText(PIX_CHAVE);
+      const btn = e.currentTarget;
+      const original = btn.textContent;
+      btn.textContent = '✅ Copiado!';
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    }catch(err){
+      alert('Não foi possível copiar. Chave Pix: ' + PIX_CHAVE);
+    }
+  });
 
   // ---- Bolões (jogos) disponíveis ----
   let boloesMap = {};
@@ -437,6 +470,12 @@
     document.getElementById('tituloHeader').textContent = '🏆 ' + (meta.titulo || 'Bolão Brasil');
     document.getElementById('grupoHeader').textContent = 'Copa do Mundo 2026' + (meta.grupo ? (' — ' + meta.grupo) : '');
     document.getElementById('dataHeader').textContent = [meta.dataHora, meta.local].filter(Boolean).join(' • ');
+
+    document.querySelectorAll('.nome-timeA').forEach(el => { el.textContent = meta.timeA || 'Brasil'; });
+    document.querySelectorAll('.bandeira-timeA').forEach(el => {
+      el.src = 'https://flagcdn.com/w40/' + (meta.bandeiraA || 'br') + '.png';
+      el.alt = meta.timeA || 'Brasil';
+    });
 
     document.querySelectorAll('.nome-adversario').forEach(el => { el.textContent = meta.adversario || 'Adversário'; });
     document.querySelectorAll('.bandeira-adversario').forEach(el => {
@@ -615,7 +654,7 @@
     const meta = metaAtiva();
     if(oficial){
       el.style.display = 'block';
-      el.innerHTML = `Resultado oficial: <img class="bandeira" src="https://flagcdn.com/w40/br.png" alt="Brasil"> Brasil ${oficial.brasil} x ${oficial.haiti} ${escapeHtml(meta.adversario || 'Adversário')} <img class="bandeira" src="https://flagcdn.com/w40/${meta.bandeiraAdversario || 'un'}.png" alt="${escapeHtml(meta.adversario || 'Adversário')}">`;
+      el.innerHTML = `Resultado oficial: <img class="bandeira" src="https://flagcdn.com/w40/${meta.bandeiraA || 'br'}.png" alt="${escapeHtml(meta.timeA || 'Brasil')}"> ${escapeHtml(meta.timeA || 'Brasil')} ${oficial.brasil} x ${oficial.haiti} ${escapeHtml(meta.adversario || 'Adversário')} <img class="bandeira" src="https://flagcdn.com/w40/${meta.bandeiraAdversario || 'un'}.png" alt="${escapeHtml(meta.adversario || 'Adversário')}">`;
     }else{
       el.style.display = 'none';
     }
@@ -792,12 +831,13 @@
     const meta = metaAtiva();
     const adversario = meta.adversario || 'Adversário';
     let texto = `🏆 *${meta.titulo || 'Bolão Brasil'}* — Copa do Mundo 2026\n\n`;
+    texto += `💠 Chave Pix para pagamento: ${PIX_CHAVE}\n\n`;
     if(palpitesAtuais.length > 0){
       const total = palpitesAtuais.length * VALOR_APOSTA;
       texto += `💰 Prêmio total: R$ ${formatBRL(total)} (${palpitesAtuais.length} ${palpitesAtuais.length === 1 ? 'aposta' : 'apostas'} x R$ ${formatBRL(VALOR_APOSTA)})\n\n`;
     }
     if(oficial){
-      texto += `📌 Resultado oficial: Brasil ${oficial.brasil} x ${oficial.haiti} ${adversario}\n\n`;
+      texto += `📌 Resultado oficial: ${meta.timeA || 'Brasil'} ${oficial.brasil} x ${oficial.haiti} ${adversario}\n\n`;
       const ganhadores = palpitesAtuais.filter(p => p.brasil === oficial.brasil && p.haiti === oficial.haiti);
       if(palpitesAtuais.length > 0){
         if(ganhadores.length === 0){

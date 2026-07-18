@@ -13,8 +13,8 @@
   </style>
 </head>
 <body>
-  <h1>Adicionar bolão Brasil x Japão</h1>
-  <p>Login admin Google obrigatório. Mantém Haiti e Escócia; abre apostas do novo jogo.</p>
+  <h1>Adicionar bolão Argentina x Espanha (Final)</h1>
+  <p>Login admin Google obrigatório. Mantém os bolões anteriores; abre apostas do novo jogo.</p>
   <button id="btnLogin">Entrar com Google (admin)</button>
   <button id="btnAdd" disabled style="margin-top:10px">Cadastrar jogo de hoje</button>
   <div id="log"></div>
@@ -33,14 +33,16 @@
     };
     const ADMINS = ['duiliodudu@gmail.com', 'wendersonfaria@gmail.com'];
     const NOVO_JOGO = {
-      id: 'brasil-japao',
-      titulo: 'Bolão Brasil x Japão',
-      adversario: 'Japão',
-      bandeiraAdversario: 'jp',
-      grupo: '16 avos de final',
-      local: 'NRG Stadium, Houston',
-      dataHora: 'Segunda-feira, 29/06 — 14h00 (horário de Brasília)',
-      ordem: 3
+      id: 'argentina-espanha',
+      titulo: 'Bolão Argentina x Espanha — Final',
+      timeA: 'Argentina',
+      bandeiraA: 'ar',
+      adversario: 'Espanha',
+      bandeiraAdversario: 'es',
+      grupo: 'Final',
+      local: 'MetLife Stadium, East Rutherford (Nova Jersey)',
+      dataHora: 'Domingo, 19/07 — 16h00 (horário de Brasília)',
+      ordem: 10
     };
 
     firebase.initializeApp(firebaseConfig);
@@ -77,7 +79,7 @@
         }, { merge: true });
         await db.collection('config').doc('trancado-' + NOVO_JOGO.id).set({ ativo: false });
         say('✅ Bolão cadastrado!', 'ok');
-        say('Link: https://duiliodutra.github.io/bolao-brasil-haiti/?bolao=brasil-japao', 'ok');
+        say('Link: https://duiliodutra.github.io/bolao-brasil-haiti/?bolao=argentina-espanha', 'ok');
       } catch (e) {
         say('Erro: ' + e.message, 'erro');
         btnAdd.disabled = false;
