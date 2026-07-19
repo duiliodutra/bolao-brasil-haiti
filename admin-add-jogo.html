@@ -7,16 +7,19 @@
     body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
     button { padding: 12px 16px; font-size: 1rem; cursor: pointer; background: #009c3b; color: #fff; border: none; border-radius: 8px; width: 100%; }
     button:disabled { opacity: 0.5; }
+    .jogo { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin-top: 14px; }
+    .jogo h3 { margin: 0 0 4px; font-size: 1rem; }
+    .jogo p { margin: 0 0 10px; font-size: .85rem; color: #666; }
     #log { margin-top: 16px; font-size: 0.9rem; white-space: pre-wrap; }
     .ok { color: #009c3b; }
     .erro { color: #c00; }
   </style>
 </head>
 <body>
-  <h1>Adicionar bolão Argentina x Espanha (Final)</h1>
-  <p>Login admin Google obrigatório. Mantém os bolões anteriores; abre apostas do novo jogo.</p>
+  <h1>Adicionar bolões pendentes</h1>
+  <p>Login admin Google obrigatório. Cada jogo abaixo pode ser cadastrado individualmente; os já publicados aparecem desabilitados.</p>
   <button id="btnLogin">Entrar com Google (admin)</button>
-  <button id="btnAdd" disabled style="margin-top:10px">Cadastrar jogo de hoje</button>
+  <div id="jogos"></div>
   <div id="log"></div>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -32,57 +35,91 @@
       appId: "1:776481320456:web:a737de47c1f9618aa8ebbd"
     };
     const ADMINS = ['duiliodudu@gmail.com', 'wendersonfaria@gmail.com'];
-    const NOVO_JOGO = {
-      id: 'argentina-espanha',
-      titulo: 'Bolão Argentina x Espanha — Final',
-      timeA: 'Argentina',
-      bandeiraA: 'ar',
-      adversario: 'Espanha',
-      bandeiraAdversario: 'es',
-      grupo: 'Final',
-      local: 'MetLife Stadium, East Rutherford (Nova Jersey)',
-      dataHora: 'Domingo, 19/07 — 16h00 (horário de Brasília)',
-      ordem: 10
-    };
+
+    const NOVOS_JOGOS = [
+      {
+        id: 'argentina-espanha',
+        titulo: 'Bolão Argentina x Espanha — Final',
+        timeA: 'Argentina',
+        bandeiraA: 'ar',
+        adversario: 'Espanha',
+        bandeiraAdversario: 'es',
+        grupo: 'Final',
+        local: 'MetLife Stadium, East Rutherford (Nova Jersey)',
+        dataHora: 'Domingo, 19/07 — 16h00 (horário de Brasília)',
+        ordem: 10
+      },
+      {
+        id: 'campeao-2026',
+        titulo: 'Bolão Campeão da Copa 2026',
+        tipo: 'campeao',
+        opcoes: [
+          { id: 'argentina', nome: 'Argentina', bandeira: 'ar' },
+          { id: 'espanha', nome: 'Espanha', bandeira: 'es' }
+        ],
+        grupo: 'Final',
+        local: 'MetLife Stadium, East Rutherford (Nova Jersey)',
+        dataHora: 'Domingo, 19/07 — 16h00 (horário de Brasília)',
+        ordem: 11
+      }
+    ];
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const auth = firebase.auth();
     const log = document.getElementById('log');
-    const btnAdd = document.getElementById('btnAdd');
+    const jogosEl = document.getElementById('jogos');
 
     function say(msg, cls) {
       log.textContent += msg + '\n';
       if (cls) log.className = cls;
     }
 
+    function renderJogos(remotos) {
+      jogosEl.innerHTML = NOVOS_JOGOS.map(j => {
+        const jaExiste = !!remotos[j.id];
+        return `<div class="jogo">
+          <h3>${j.titulo}</h3>
+          <p>${j.dataHora} • ${j.local}</p>
+          <button data-id="${j.id}" ${jaExiste ? 'disabled' : ''}>${jaExiste ? '✅ Já cadastrado' : 'Cadastrar este jogo'}</button>
+        </div>`;
+      }).join('');
+    }
+
+    renderJogos({});
+
     document.getElementById('btnLogin').addEventListener('click', () => {
       auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => say(e.message, 'erro'));
     });
 
-    auth.onAuthStateChanged(user => {
+    auth.onAuthStateChanged(async user => {
       if (user && ADMINS.includes(user.email)) {
         say('Admin: ' + user.email, 'ok');
-        btnAdd.disabled = false;
         document.getElementById('btnLogin').style.display = 'none';
+        const snap = await db.collection('config').doc('boloes').get();
+        renderJogos(snap.exists ? snap.data() : {});
       } else if (user) {
         say('Conta sem permissão: ' + user.email, 'erro');
-        btnAdd.disabled = true;
       }
     });
 
-    btnAdd.addEventListener('click', async () => {
-      btnAdd.disabled = true;
+    jogosEl.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-id]');
+      if (!btn) return;
+      const jogo = NOVOS_JOGOS.find(j => j.id === btn.dataset.id);
+      if (!jogo) return;
+      btn.disabled = true;
       try {
         await db.collection('config').doc('boloes').set({
-          [NOVO_JOGO.id]: NOVO_JOGO
+          [jogo.id]: jogo
         }, { merge: true });
-        await db.collection('config').doc('trancado-' + NOVO_JOGO.id).set({ ativo: false });
-        say('✅ Bolão cadastrado!', 'ok');
-        say('Link: https://duiliodutra.github.io/bolao-brasil-haiti/?bolao=argentina-espanha', 'ok');
+        await db.collection('config').doc('trancado-' + jogo.id).set({ ativo: false });
+        say('✅ ' + jogo.titulo + ' cadastrado!', 'ok');
+        say('Link: https://duiliodutra.github.io/bolao-brasil-haiti/?bolao=' + jogo.id, 'ok');
+        btn.textContent = '✅ Já cadastrado';
       } catch (e) {
         say('Erro: ' + e.message, 'erro');
-        btnAdd.disabled = false;
+        btn.disabled = false;
       }
     });
   </script>

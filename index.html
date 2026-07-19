@@ -270,6 +270,19 @@
   }
   .pix-info #pixChave{font-family:monospace;letter-spacing:.5px;}
   .pix-info .acao-btn{width:auto;padding:5px 10px;}
+  .opcoes-campeao{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+  .opcao-campeao{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    border:1px solid #ddd;
+    border-radius:8px;
+    padding:10px 12px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  .opcao-campeao:has(input:checked){border-color:var(--verde);background:#e6f7ec;}
+  .opcao-campeao input{margin:0;width:auto;}
   footer{
     text-align:center;
     color:#999;
@@ -302,13 +315,20 @@
       <label for="nome">Seu nome</label>
       <input type="text" id="nome" maxlength="40" placeholder="Ex: Duilio" required>
 
-      <label>Placar final</label>
-      <div class="placar-row">
-        <span class="time"><img class="bandeira bandeira-timeA" src="https://flagcdn.com/w40/br.png" alt="Brasil"> <span class="nome-timeA">Brasil</span></span>
-        <input type="number" id="placarBrasil" min="0" max="20" required>
-        <span class="versus">x</span>
-        <input type="number" id="placarHaiti" min="0" max="20" required>
-        <span class="time" style="text-align:right"><span class="nome-adversario">Adversário</span> <img class="bandeira bandeira-adversario" src="https://flagcdn.com/w40/ht.png" alt="Adversário"></span>
+      <div id="blocoPlacar">
+        <label>Placar final</label>
+        <div class="placar-row">
+          <span class="time"><img class="bandeira bandeira-timeA" src="https://flagcdn.com/w40/br.png" alt="Brasil"> <span class="nome-timeA">Brasil</span></span>
+          <input type="number" id="placarBrasil" min="0" max="20">
+          <span class="versus">x</span>
+          <input type="number" id="placarHaiti" min="0" max="20">
+          <span class="time" style="text-align:right"><span class="nome-adversario">Adversário</span> <img class="bandeira bandeira-adversario" src="https://flagcdn.com/w40/ht.png" alt="Adversário"></span>
+        </div>
+      </div>
+
+      <div id="blocoCampeao" style="display:none;">
+        <label>Quem vai ser o campeão?</label>
+        <div id="opcoesCampeao" class="opcoes-campeao"></div>
       </div>
 
       <button type="submit">Enviar palpite</button>
@@ -337,13 +357,14 @@
         <button class="btn-logout" id="btnLogout" type="button">Sair</button>
       </div>
       <label>Resultado oficial</label>
-      <div class="placar-row">
+      <div id="blocoOficialPlacar" class="placar-row">
         <span class="time"><img class="bandeira bandeira-timeA" src="https://flagcdn.com/w40/br.png" alt="Brasil"> <span class="nome-timeA">Brasil</span></span>
         <input type="number" id="oficialBrasil" min="0" max="20">
         <span class="versus">x</span>
         <input type="number" id="oficialHaiti" min="0" max="20">
         <span class="time" style="text-align:right"><span class="nome-adversario">Adversário</span> <img class="bandeira bandeira-adversario" src="https://flagcdn.com/w40/ht.png" alt="Adversário"></span>
       </div>
+      <select id="oficialCampeaoSelect" style="display:none;"></select>
       <div class="admin-row">
         <button class="admin" id="btnOficial" type="button">Salvar resultado oficial</button>
         <button class="admin btn-trancar" id="btnTrancar" type="button">🔒 Trancar apostas</button>
@@ -431,6 +452,7 @@
   // ---- Bolões (jogos) disponíveis ----
   let boloesMap = {};
   let bolaoAtivo = null;
+  let tipoAtivo = 'placar';
   let unsubPalpites = null;
   let unsubResultado = null;
   let unsubTrancado = null;
@@ -483,6 +505,28 @@
       el.alt = meta.adversario || 'Adversário';
     });
 
+    tipoAtivo = meta.tipo === 'campeao' ? 'campeao' : 'placar';
+    const ehCampeao = tipoAtivo === 'campeao';
+    document.getElementById('blocoPlacar').style.display = ehCampeao ? 'none' : 'block';
+    document.getElementById('blocoCampeao').style.display = ehCampeao ? 'block' : 'none';
+    document.getElementById('blocoOficialPlacar').style.display = ehCampeao ? 'none' : 'flex';
+    document.getElementById('oficialCampeaoSelect').style.display = ehCampeao ? 'block' : 'none';
+    document.getElementById('placarBrasil').required = !ehCampeao;
+    document.getElementById('placarHaiti').required = !ehCampeao;
+
+    if(ehCampeao){
+      const opcoes = meta.opcoes || [];
+      document.getElementById('opcoesCampeao').innerHTML = opcoes.map(o => `
+        <label class="opcao-campeao">
+          <input type="radio" name="campeaoEscolha" value="${escapeHtml(o.id)}">
+          <img class="bandeira" src="https://flagcdn.com/w40/${o.bandeira || 'un'}.png" alt="${escapeHtml(o.nome)}">
+          ${escapeHtml(o.nome)}
+        </label>`).join('');
+      document.getElementById('oficialCampeaoSelect').innerHTML =
+        '<option value="">Selecione o campeão...</option>' +
+        opcoes.map(o => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.nome)}</option>`).join('');
+    }
+
     const params = new URLSearchParams(location.search);
     params.set('bolao', bolaoAtivo);
     history.replaceState(null, '', location.pathname + '?' + params.toString());
@@ -526,33 +570,46 @@
     }
 
     const nomeInput = document.getElementById('nome');
-    const placarBrasilInput = document.getElementById('placarBrasil');
-    const placarHaitiInput = document.getElementById('placarHaiti');
-
     const nome = nomeInput.value.trim();
-    const brasil = parseInt(placarBrasilInput.value, 10);
-    const haiti = parseInt(placarHaitiInput.value, 10);
 
-    if(!nome || isNaN(brasil) || isNaN(haiti) || brasil < 0 || haiti < 0){
-      msg.textContent = 'Preencha nome e placar corretamente.';
+    if(!nome){
+      msg.textContent = 'Preencha seu nome.';
       msg.className = 'erro';
       return;
     }
 
+    const palpite = { nome: nome, bolaoId: bolaoAtivo, timestamp: firebase.firestore.FieldValue.serverTimestamp() };
+    const placarBrasilInput = document.getElementById('placarBrasil');
+    const placarHaitiInput = document.getElementById('placarHaiti');
+
+    if(tipoAtivo === 'campeao'){
+      const escolhido = document.querySelector('input[name="campeaoEscolha"]:checked');
+      if(!escolhido){
+        msg.textContent = 'Escolha um time para ser o campeão.';
+        msg.className = 'erro';
+        return;
+      }
+      palpite.escolha = escolhido.value;
+    }else{
+      const brasil = parseInt(placarBrasilInput.value, 10);
+      const haiti = parseInt(placarHaitiInput.value, 10);
+      if(isNaN(brasil) || isNaN(haiti) || brasil < 0 || haiti < 0){
+        msg.textContent = 'Preencha nome e placar corretamente.';
+        msg.className = 'erro';
+        return;
+      }
+      palpite.brasil = brasil;
+      palpite.haiti = haiti;
+    }
+
     try{
-      await db.collection('palpites').add({
-        nome: nome,
-        brasil: brasil,
-        haiti: haiti,
-        bolaoId: bolaoAtivo,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      await db.collection('palpites').add(palpite);
       msg.textContent = '✅ Palpite registrado! Você pode apostar de novo quando quiser.';
       msg.className = 'ok';
-      // Limpa o placar para o próximo palpite (mantém o nome preenchido).
+      // Limpa o palpite anterior (mantém o nome preenchido).
       placarBrasilInput.value = '';
       placarHaitiInput.value = '';
-      placarBrasilInput.focus();
+      document.querySelectorAll('input[name="campeaoEscolha"]').forEach(r => { r.checked = false; });
     }catch(err){
       console.error(err);
       msg.textContent = 'Erro ao enviar. Tente novamente.';
@@ -565,6 +622,12 @@
   let oficial = null;
   let editandoId = null;
 
+  function nomeOpcao(id){
+    const opcoes = metaAtiva().opcoes || [];
+    const o = opcoes.find(o => o.id === id);
+    return o ? o.nome : (id || '?');
+  }
+
   function renderLista(){
     const lista = document.getElementById('lista');
     const contador = document.getElementById('contador');
@@ -575,21 +638,25 @@
       return;
     }
 
+    const ehCampeao = tipoAtivo === 'campeao';
     const acoesHeader = isAdmin ? '<th>Ações</th>' : '';
-    let html = `<table><thead><tr><th>Nome</th><th>Placar</th>${acoesHeader}</tr></thead><tbody>`;
+    let html = `<table><thead><tr><th>Nome</th><th>${ehCampeao ? 'Campeão' : 'Placar'}</th>${acoesHeader}</tr></thead><tbody>`;
     palpitesAtuais.forEach(p => {
-      const acertou = oficial && p.brasil === oficial.brasil && p.haiti === oficial.haiti;
+      const acertou = ehCampeao
+        ? (oficial && p.escolha === oficial.campeao)
+        : (oficial && p.brasil === oficial.brasil && p.haiti === oficial.haiti);
 
       if(isAdmin && editandoId === p.id){
-        html += `<tr class="editando" data-id="${p.id}">
-          <td><input type="text" class="edit-nome" value="${escapeHtml(p.nome)}" maxlength="40"></td>
-          <td>
-            <div class="edit-placar">
+        const campoEdicao = ehCampeao
+          ? `<select class="edit-campeao">${(metaAtiva().opcoes || []).map(o => `<option value="${escapeHtml(o.id)}" ${o.id === p.escolha ? 'selected' : ''}>${escapeHtml(o.nome)}</option>`).join('')}</select>`
+          : `<div class="edit-placar">
               <input type="number" class="edit-brasil" value="${p.brasil}" min="0" max="20">
               <span>x</span>
               <input type="number" class="edit-haiti" value="${p.haiti}" min="0" max="20">
-            </div>
-          </td>
+            </div>`;
+        html += `<tr class="editando" data-id="${p.id}">
+          <td><input type="text" class="edit-nome" value="${escapeHtml(p.nome)}" maxlength="40"></td>
+          <td>${campoEdicao}</td>
           <td class="acoes">
             <button type="button" class="acao-btn salvar" data-id="${p.id}" title="Salvar">💾</button>
             <button type="button" class="acao-btn cancelar" data-id="${p.id}" title="Cancelar">✖️</button>
@@ -600,7 +667,8 @@
             <button type="button" class="acao-btn editar" data-id="${p.id}" title="Editar">✏️</button>
             <button type="button" class="acao-btn excluir" data-id="${p.id}" data-nome="${escapeHtml(p.nome)}" title="Excluir">🗑️</button>
           </td>` : '';
-        html += `<tr class="${acertou ? 'vencedor' : ''}"><td>${escapeHtml(p.nome)}</td><td>${p.brasil} x ${p.haiti}</td>${acoesCell}</tr>`;
+        const valorCell = ehCampeao ? escapeHtml(nomeOpcao(p.escolha)) : `${p.brasil} x ${p.haiti}`;
+        html += `<tr class="${acertou ? 'vencedor' : ''}"><td>${escapeHtml(p.nome)}</td><td>${valorCell}</td>${acoesCell}</tr>`;
       }
     });
     html += '</tbody></table>';
@@ -621,14 +689,23 @@
     }else if(btn.classList.contains('salvar')){
       const row = btn.closest('tr');
       const nome = row.querySelector('.edit-nome').value.trim();
-      const brasil = parseInt(row.querySelector('.edit-brasil').value, 10);
-      const haiti = parseInt(row.querySelector('.edit-haiti').value, 10);
-      if(!nome || isNaN(brasil) || isNaN(haiti) || brasil < 0 || haiti < 0){
-        alert('Preencha nome e placar corretamente.');
+      if(!nome){
+        alert('Preencha o nome.');
         return;
       }
       try{
-        await db.collection('palpites').doc(id).update({ nome, brasil, haiti });
+        if(tipoAtivo === 'campeao'){
+          const escolha = row.querySelector('.edit-campeao').value;
+          await db.collection('palpites').doc(id).update({ nome, escolha });
+        }else{
+          const brasil = parseInt(row.querySelector('.edit-brasil').value, 10);
+          const haiti = parseInt(row.querySelector('.edit-haiti').value, 10);
+          if(isNaN(brasil) || isNaN(haiti) || brasil < 0 || haiti < 0){
+            alert('Preencha o placar corretamente.');
+            return;
+          }
+          await db.collection('palpites').doc(id).update({ nome, brasil, haiti });
+        }
         editandoId = null;
         renderLista();
       }catch(err){
@@ -652,11 +729,18 @@
   function renderOficial(){
     const el = document.getElementById('resultadoOficial');
     const meta = metaAtiva();
-    if(oficial){
-      el.style.display = 'block';
-      el.innerHTML = `Resultado oficial: <img class="bandeira" src="https://flagcdn.com/w40/${meta.bandeiraA || 'br'}.png" alt="${escapeHtml(meta.timeA || 'Brasil')}"> ${escapeHtml(meta.timeA || 'Brasil')} ${oficial.brasil} x ${oficial.haiti} ${escapeHtml(meta.adversario || 'Adversário')} <img class="bandeira" src="https://flagcdn.com/w40/${meta.bandeiraAdversario || 'un'}.png" alt="${escapeHtml(meta.adversario || 'Adversário')}">`;
-    }else{
+    if(!oficial){
       el.style.display = 'none';
+      return;
+    }
+    el.style.display = 'block';
+    if(tipoAtivo === 'campeao'){
+      const opcao = (meta.opcoes || []).find(o => o.id === oficial.campeao);
+      el.innerHTML = opcao
+        ? `Campeão: <img class="bandeira" src="https://flagcdn.com/w40/${opcao.bandeira || 'un'}.png" alt="${escapeHtml(opcao.nome)}"> ${escapeHtml(opcao.nome)}`
+        : 'Campeão ainda não definido.';
+    }else{
+      el.innerHTML = `Resultado oficial: <img class="bandeira" src="https://flagcdn.com/w40/${meta.bandeiraA || 'br'}.png" alt="${escapeHtml(meta.timeA || 'Brasil')}"> ${escapeHtml(meta.timeA || 'Brasil')} ${oficial.brasil} x ${oficial.haiti} ${escapeHtml(meta.adversario || 'Adversário')} <img class="bandeira" src="https://flagcdn.com/w40/${meta.bandeiraAdversario || 'un'}.png" alt="${escapeHtml(meta.adversario || 'Adversário')}">`;
     }
   }
 
@@ -674,10 +758,12 @@
       el.style.display = 'none';
       return;
     }
-    const ganhadores = palpitesAtuais.filter(p => p.brasil === oficial.brasil && p.haiti === oficial.haiti);
+    const ganhadores = tipoAtivo === 'campeao'
+      ? palpitesAtuais.filter(p => p.escolha === oficial.campeao)
+      : palpitesAtuais.filter(p => p.brasil === oficial.brasil && p.haiti === oficial.haiti);
     el.style.display = 'block';
     if(ganhadores.length === 0){
-      el.innerHTML = 'Nenhum palpite acertou o placar exato. 😅';
+      el.innerHTML = tipoAtivo === 'campeao' ? 'Nenhum palpite escolheu o campeão. 😅' : 'Nenhum palpite acertou o placar exato. 😅';
       return;
     }
     const total = palpitesAtuais.length * VALOR_APOSTA;
@@ -730,6 +816,7 @@
       inputNome.disabled = trancado;
       inputPlacarBrasil.disabled = trancado;
       inputPlacarHaiti.disabled = trancado;
+      document.querySelectorAll('input[name="campeaoEscolha"]').forEach(r => { r.disabled = trancado; });
       if(btnTrancar){
         btnTrancar.textContent = trancado ? '🔓 Destrancar apostas' : '🔒 Trancar apostas';
         btnTrancar.classList.toggle('destrancar', trancado);
@@ -815,11 +902,17 @@
 
   document.getElementById('btnOficial').addEventListener('click', async () => {
     if(!isAdmin || !bolaoAtivo) return;
-    const b = parseInt(document.getElementById('oficialBrasil').value, 10);
-    const h = parseInt(document.getElementById('oficialHaiti').value, 10);
-    if(isNaN(b) || isNaN(h)){ alert('Preencha o placar oficial.'); return; }
     try{
-      await db.collection('config').doc('resultado-' + bolaoAtivo).set({ brasil: b, haiti: h });
+      if(tipoAtivo === 'campeao'){
+        const campeao = document.getElementById('oficialCampeaoSelect').value;
+        if(!campeao){ alert('Selecione o campeão.'); return; }
+        await db.collection('config').doc('resultado-' + bolaoAtivo).set({ campeao });
+      }else{
+        const b = parseInt(document.getElementById('oficialBrasil').value, 10);
+        const h = parseInt(document.getElementById('oficialHaiti').value, 10);
+        if(isNaN(b) || isNaN(h)){ alert('Preencha o placar oficial.'); return; }
+        await db.collection('config').doc('resultado-' + bolaoAtivo).set({ brasil: b, haiti: h });
+      }
       alert('Resultado oficial salvo!');
     }catch(err){
       alert('Erro ao salvar: ' + err.message);
@@ -836,12 +929,19 @@
       const total = palpitesAtuais.length * VALOR_APOSTA;
       texto += `💰 Prêmio total: R$ ${formatBRL(total)} (${palpitesAtuais.length} ${palpitesAtuais.length === 1 ? 'aposta' : 'apostas'} x R$ ${formatBRL(VALOR_APOSTA)})\n\n`;
     }
+    const ehCampeao = tipoAtivo === 'campeao';
     if(oficial){
-      texto += `📌 Resultado oficial: ${meta.timeA || 'Brasil'} ${oficial.brasil} x ${oficial.haiti} ${adversario}\n\n`;
-      const ganhadores = palpitesAtuais.filter(p => p.brasil === oficial.brasil && p.haiti === oficial.haiti);
+      if(ehCampeao){
+        texto += `📌 Campeão: ${nomeOpcao(oficial.campeao)}\n\n`;
+      }else{
+        texto += `📌 Resultado oficial: ${meta.timeA || 'Brasil'} ${oficial.brasil} x ${oficial.haiti} ${adversario}\n\n`;
+      }
+      const ganhadores = ehCampeao
+        ? palpitesAtuais.filter(p => p.escolha === oficial.campeao)
+        : palpitesAtuais.filter(p => p.brasil === oficial.brasil && p.haiti === oficial.haiti);
       if(palpitesAtuais.length > 0){
         if(ganhadores.length === 0){
-          texto += '😅 Nenhum palpite acertou o placar exato.\n\n';
+          texto += ehCampeao ? '😅 Nenhum palpite escolheu o campeão.\n\n' : '😅 Nenhum palpite acertou o placar exato.\n\n';
         }else{
           const total = palpitesAtuais.length * VALOR_APOSTA;
           const valorCada = total / ganhadores.length;
@@ -856,8 +956,9 @@
       texto += 'Nenhum palpite ainda.';
     }else{
       palpitesAtuais.forEach(p => {
-        const acertou = oficial && p.brasil === oficial.brasil && p.haiti === oficial.haiti;
-        texto += `${acertou ? '🏆 ' : '• '}${p.nome}: ${p.brasil} x ${p.haiti}\n`;
+        const acertou = ehCampeao ? (oficial && p.escolha === oficial.campeao) : (oficial && p.brasil === oficial.brasil && p.haiti === oficial.haiti);
+        const valor = ehCampeao ? nomeOpcao(p.escolha) : `${p.brasil} x ${p.haiti}`;
+        texto += `${acertou ? '🏆 ' : '• '}${p.nome}: ${valor}\n`;
       });
     }
     texto += '\n📲 Para novas apostas: https://duiliodutra.github.io/bolao-brasil-haiti/?bolao=' + (bolaoAtivo || 'brasil-japao');
