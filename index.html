@@ -628,14 +628,6 @@
     return o ? o.nome : (id || '?');
   }
 
-  function nomeOpcaoComBandeira(id){
-    const opcoes = metaAtiva().opcoes || [];
-    const o = opcoes.find(o => o.id === id);
-    if(!o) return id || '?';
-    const emoji = bandeiraEmoji(o.bandeira);
-    return (emoji ? emoji + ' ' : '') + o.nome;
-  }
-
   function renderLista(){
     const lista = document.getElementById('lista');
     const contador = document.getElementById('contador');
@@ -732,11 +724,6 @@
 
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
-
-  function bandeiraEmoji(codigo){
-    if(!codigo || !/^[a-zA-Z]{2}$/.test(codigo)) return '';
-    return String.fromCodePoint(...[...codigo.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
   }
 
   function renderOficial(){
@@ -936,10 +923,7 @@
   document.getElementById('btnWhatsapp').addEventListener('click', () => {
     const meta = metaAtiva();
     const adversario = meta.adversario || 'Adversário';
-    const bandeiraTimeA = bandeiraEmoji(meta.bandeiraA || 'br');
-    const bandeiraAdversario = bandeiraEmoji(meta.bandeiraAdversario);
-    const bandeirasTitulo = [bandeiraTimeA, bandeiraAdversario].filter(Boolean).join(' ');
-    let texto = `🏆 *${meta.titulo || 'Bolão Brasil'}*${bandeirasTitulo ? ' ' + bandeirasTitulo : ''} — Copa do Mundo 2026\n\n`;
+    let texto = `🏆 *${meta.titulo || 'Bolão Brasil'}* — Copa do Mundo 2026\n\n`;
     texto += `💠 Chave Pix para pagamento: ${PIX_CHAVE}\n\n`;
     if(palpitesAtuais.length > 0){
       const total = palpitesAtuais.length * VALOR_APOSTA;
@@ -948,9 +932,9 @@
     const ehCampeao = tipoAtivo === 'campeao';
     if(oficial){
       if(ehCampeao){
-        texto += `📌 Campeão: ${nomeOpcaoComBandeira(oficial.campeao)}\n\n`;
+        texto += `📌 Campeão: ${nomeOpcao(oficial.campeao)}\n\n`;
       }else{
-        texto += `📌 Resultado oficial: ${bandeiraTimeA} ${meta.timeA || 'Brasil'} ${oficial.brasil} x ${oficial.haiti} ${adversario} ${bandeiraAdversario}\n\n`;
+        texto += `📌 Resultado oficial: ${meta.timeA || 'Brasil'} ${oficial.brasil} x ${oficial.haiti} ${adversario}\n\n`;
       }
       const ganhadores = ehCampeao
         ? palpitesAtuais.filter(p => p.escolha === oficial.campeao)
@@ -973,7 +957,7 @@
     }else{
       palpitesAtuais.forEach(p => {
         const acertou = ehCampeao ? (oficial && p.escolha === oficial.campeao) : (oficial && p.brasil === oficial.brasil && p.haiti === oficial.haiti);
-        const valor = ehCampeao ? nomeOpcaoComBandeira(p.escolha) : `${bandeiraTimeA} ${p.brasil} x ${p.haiti} ${bandeiraAdversario}`;
+        const valor = ehCampeao ? nomeOpcao(p.escolha) : `${p.brasil} x ${p.haiti}`;
         texto += `${acertou ? '🏆 ' : '• '}${p.nome}: ${valor}\n`;
       });
     }
